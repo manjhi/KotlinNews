@@ -4,8 +4,10 @@ import com.omninos.kotlinproject.data.network.MyApi
 import com.omninos.kotlinproject.data.network.SafeApiRequest
 import com.omninos.kotlinproject.data.network.responses.NewsResponse
 
-class ApiRepository: SafeApiRequest() {
+class ApiRepository(
+    private val myApi: MyApi
+) : SafeApiRequest() {
     suspend fun getNews(): NewsResponse {
-        return apiRequest { MyApi().getData() }
+        return apiRequest { myApi.getData() }
     }
 }

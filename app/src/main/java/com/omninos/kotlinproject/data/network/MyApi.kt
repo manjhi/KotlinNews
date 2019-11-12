@@ -14,9 +14,14 @@ interface MyApi {
 
     companion object {
         operator fun invoke(
+            networkConnectionInterceptor: NetworkConnectionInterceptor
         ): MyApi {
+            val okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(networkConnectionInterceptor)
+                .build()
             return Retrofit
                 .Builder().baseUrl("https://newsapi.org/")
+                .client(okHttpClient)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
                 .create(MyApi::class.java)

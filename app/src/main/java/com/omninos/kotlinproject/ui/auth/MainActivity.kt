@@ -7,23 +7,28 @@ import androidx.databinding.DataBindingUtil
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.omninos.kotlinproject.R
 import com.omninos.kotlinproject.data.network.responses.NewsResponse
 import com.omninos.kotlinproject.databinding.ActivityMainBinding
 import com.omninos.kotlinproject.ui.adapter.NewsAdapter
 import com.omninos.kotlinproject.ui.home.WebActivity
-import com.omninos.kotlinproject.util.hide
 import com.omninos.kotlinproject.util.isOnline
-import com.omninos.kotlinproject.util.show
 import com.omninos.kotlinproject.util.snackBar
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import org.kodein.di.KodeinAware
+import org.kodein.di.android.kodein
+import org.kodein.di.generic.instance
 import kotlin.coroutines.CoroutineContext
 
-class MainActivity : AppCompatActivity(), CallBacks, CoroutineScope {
+class MainActivity : AppCompatActivity(), CallBacks, CoroutineScope, KodeinAware {
+
+    override val kodein by kodein()
+
     private var job: Job = Job()
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.Main + job
@@ -33,21 +38,23 @@ class MainActivity : AppCompatActivity(), CallBacks, CoroutineScope {
         job.cancel()
     }
 
+
     private var size: Int? = null
     lateinit var recyclerView: RecyclerView
-
+    lateinit var swipe_layout: SwipeRefreshLayout
+    private val factory: ViewModelFactory by instance()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         val binding: ActivityMainBinding =
             DataBindingUtil.setContentView(this, R.layout.activity_main)
-        val viewModel = ViewModelProviders.of(this).get(MyViewModel::class.java)
+        val viewModel = ViewModelProviders.of(this, factory).get(MyViewModel::class.java)
         binding.data = viewModel
 
         viewModel.listener = this
 
         recyclerView = findViewById(R.id.recyclerView)
+        swipe_layout = findViewById(R.id.swipe_layout)
 
         val layoutManager = LinearLayoutManager(this)
         layoutManager.orientation = LinearLayoutManager.VERTICAL
@@ -60,15 +67,21 @@ class MainActivity : AppCompatActivity(), CallBacks, CoroutineScope {
                 root_layout.snackBar("No Internet Connection")
             }
         }
+
+        swipe_layout.setOnRefreshListener {
+            launch {
+                viewModel.getNewsData()
+            }
+        }
     }
 
     override fun onStarted() {
+        swipe_layout.isRefreshing = true
         println("Data: Started")
-        progress_circular.show()
     }
 
     override fun onSuccess(newsResponse: NewsResponse) {
-        progress_circular.hide()
+        swipe_layout.isRefreshing = false
         size = newsResponse.articles?.size
         for (i in 0 until size!!) {
             println("Data Is:" + newsResponse.articles?.get(i)?.author)
@@ -77,7 +90,6 @@ class MainActivity : AppCompatActivity(), CallBacks, CoroutineScope {
             newsResponse.articles!!,
             this,
             ({
-//                root_layout.snackBar("" + newsResponse.articles?.get(it)?.title)
                 startActivity(
                     Intent(this@MainActivity, WebActivity::class.java).putExtra(
                         "Url",
@@ -86,10 +98,13 @@ class MainActivity : AppCompatActivity(), CallBacks, CoroutineScope {
                 )
             })
         )
+        recyclerView.adapter?.notifyDataSetChanged()
+
+        recyclerView
     }
 
     override fun onFailer(message: String) {
-        progress_circular.hide()
+        swipe_layout.isRefreshing = true
         println("Data: Fail")
     }
 
